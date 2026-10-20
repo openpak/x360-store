@@ -90,9 +90,15 @@ XAM task). The dashboard enables it at boot (SetMode 1). At every Live sign-in, 
 service 10 in the KDC D7 list: the 32-byte 0x1202 request arrives with the user's XUID. For a
 picked item XAM then:
 
-1. calls 0x914 = 0x931 FindMediaInstanceUrls (Live service 9, not served yet). The reply needs
-   exactly one entry with a 16-byte content key, a 284-byte RSA-2048 public key blob and up to
-   10 plain `http://` URLs;
+1. claims it (0x1207), resolves the install path, then calls 0x914 = 0x931
+   FindMediaInstanceUrls (Live service 9). Verified in Wharf with a test item on 2026-10-20:
+   the chain 0x1202 -> 0x1201 -> 0x1208 -> pick -> 0x1207 -> 0x914 ran, 0x914 failed locally
+   with 0x800704DB four times (service 9 is not in the ticket) and XAM deleted the item (0x1206).
+   Adding service 9 to the D7 list breaks the Live sign-in (80004005, the logon stops after
+   GetRevocationList with no further request), so that is the next RE step. The reply
+   needs exactly one entry with a 16-byte content key, a 284-byte RSA-2048 public key blob
+   and up to 10 plain `http://` URLs. This service logs the request at
+   `/xbos/FindMediaInstanceUrls.ashx` and answers 404;
 2. downloads the URL. The body must be a signed, RC4-encrypted Microsoft Cabinet whose
    reserve is verified with that RSA key. The server chooses both keys, so OpenPak can produce
    valid files. A CAB writer is still to be built;
