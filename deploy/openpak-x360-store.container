@@ -1,0 +1,26 @@
+# PRIMARY host. OpenPak Xbox 360 store (x360-store): the homebrew catalog (GET /v1/catalog, internal
+# network) and the Live download-queue XRL requests (/Lists/*.ashx, Live service 10) the security
+# gateway tunnels to the primary's Traefik. Identity headers are trusted only with the gateway key.
+[Unit]
+Description=OpenPak Xbox 360 store: homebrew catalog and download queue (x360-store)
+
+[Container]
+ContainerName=openpak-x360-store
+Image=ghcr.io/openpak/x360-store:latest
+AutoUpdate=registry
+Network=openpak.network
+Environment=X360_STORE_ADDR=:10044
+# Optional: a validated catalog file (see README). Unset = the empty catalog.
+#Environment=X360_STORE_CATALOG=/run/catalog/catalog.json
+#Volume=%h/openpak/deploy/x360-store/catalog:/run/catalog:ro,Z
+EnvironmentFile=%h/openpak/deploy/x360-gateway-key.env
+ReadOnly=true
+DropCapability=ALL
+NoNewPrivileges=true
+UserNS=keep-id:uid=100,gid=101
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

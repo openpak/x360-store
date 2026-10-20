@@ -1,0 +1,14 @@
+# Merge into the primary's shared ~/openpak/deploy/traefik/dynamic.yml (routers under
+# http.routers, services under http.services). The gateway forwards Live service 10 here.
+http:
+  routers:
+    x360-store-lists-web:
+      entryPoints: [web]
+      rule: PathPrefix(`/Lists`)
+      priority: 40
+      service: x360-store-http
+  services:
+    x360-store-http:
+      loadBalancer:
+        servers:
+        - url: http://openpak-x360-store:10044
