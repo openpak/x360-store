@@ -7,6 +7,11 @@ http:
       rule: PathPrefix(`/Lists`)
       priority: 40
       service: x360-store-http
+    x360-store-xbos-web:
+      entryPoints: [web]
+      rule: Path(`/xbos/FindMediaInstanceUrls.ashx`)
+      priority: 45
+      service: x360-store-http
   services:
     x360-store-http:
       loadBalancer:

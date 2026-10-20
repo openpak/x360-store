@@ -226,8 +226,7 @@ func (q *Queues) Reply(path string, body []byte) (out []byte, ok bool, err error
 		r.u64()
 		n := r.u16()
 		for i := 0; i < int(n) && i < 100 && r.err == nil; i++ {
-			id := [16]byte(r.take(16))
-			r.u16()
+			id := [16]byte(r.take(16)) // then u16 len + item XML (no flags word, unlike 0x1208)
 			x := r.take(int(r.u16()))
 			if u == nil || r.err != nil {
 				continue

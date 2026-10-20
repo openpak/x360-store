@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-20: v0.2.1: parse 0x1207 items as GUID + u16 length + XML (no flags word); log
+  FindMediaInstanceUrls (0x930/0x931) requests, still unserved (404).
+
 - 2026-10-20: v0.2.0: per-user download queues (0x1202/0x1208/0x1201/0x1206/0x1207, in memory)
   and an operator endpoint to queue items. XAM's sign-in query was verified in Wharf.
 

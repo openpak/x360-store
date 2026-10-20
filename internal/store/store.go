@@ -47,6 +47,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.adminQueue(w, r)
 	case strings.HasPrefix(path, "/lists/"):
 		h.lists(w, r, path)
+	case path == "/xbos/findmediainstanceurls.ashx":
+		// XRL 0x930/0x931 (Live service 9): the download step after an item is picked. Not
+		// served until OpenPak can build the signed CAB + LIVE package it must point to.
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 512))
+		h.log().Info("findmediainstanceurls", "users", r.Header.Get(wire.UsersHeader), "body", hex.EncodeToString(body))
+		http.NotFound(w, r)
 	default:
 		h.log().Info("unhandled", "method", r.Method, "path", r.URL.Path)
 		http.NotFound(w, r)

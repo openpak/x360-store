@@ -107,8 +107,14 @@ func TestQueueFlow(t *testing.T) {
 		binary.LittleEndian.Uint16(out[28:]) != 1000 || !bytes.Contains(out, []byte("<offerName>Test</offerName>")) {
 		t.Fatalf("0x1208: %v %q", err, out)
 	}
-	out, _, err = q.Reply("/lists/deletedownloaditems.ashx", append(req(uint32(1), uint64(3), uint16(1)), id[:]...))
-	if err != nil || binary.LittleEndian.Uint64(out) != 4 {
+	x := "<RootNode><state>1</state></RootNode>"
+	out, _, err = q.Reply("/lists/modifydownloaditems.ashx", append(append(req(uint32(1), uint64(3), uint16(1)), id[:]...),
+		append(binary.LittleEndian.AppendUint16(nil, uint16(len(x))), x...)...))
+	if err != nil || binary.LittleEndian.Uint64(out) != 4 || q.m[xuid].items[0].State != 1 {
+		t.Fatalf("0x1207: %v %x", err, out)
+	}
+	out, _, err = q.Reply("/lists/deletedownloaditems.ashx", append(req(uint32(1), uint64(4), uint16(1)), id[:]...))
+	if err != nil || binary.LittleEndian.Uint64(out) != 5 {
 		t.Fatalf("0x1206: %v %x", err, out)
 	}
 	out, _, _ = q.Reply("/lists/querydownloaditems.ashx", req(uint32(1), uint32(2), uint32(0), uint32(1), uint16(0)))
