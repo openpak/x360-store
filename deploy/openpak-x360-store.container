@@ -15,6 +15,8 @@ Environment=X360_STORE_ADDR=:10044
 #Environment=X360_STORE_CATALOG=/run/catalog/catalog.json
 #Volume=%h/openpak/deploy/x360-store/catalog:/run/catalog:ro,Z
 EnvironmentFile=%h/openpak/deploy/x360-gateway-key.env
+# X360_STORE_ADMIN_KEY=<random> for POST/DELETE /v1/admin/queue (uncommitted).
+EnvironmentFile=%h/openpak/deploy/x360-store/admin.env
 ReadOnly=true
 DropCapability=ALL
 NoNewPrivileges=true

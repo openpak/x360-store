@@ -10,16 +10,24 @@ changing it run `GOWORK=off go mod vendor` here and commit).
 | Path | Who calls it | Reply |
 | --- | --- | --- |
 | `GET /v1/catalog[?kind=game\|app]` | OpenPak website/app, internal network | JSON `{network, count, items}` |
-| `POST /Lists/QueryDownloadQueues.ashx` (XRL 0x1202) | XAM, through the security gateway | `xon/5`, 4 zero bytes: no queue |
-| `POST /Lists/QueryDownloadItems.ashx` (XRL 0x1208) | XAM, through the security gateway | `xon/5`, 12 zero bytes: no items |
+| `POST /Lists/QueryDownloadQueues.ashx` (XRL 0x1202) | XAM, through the security gateway | no queue (4 zero bytes) or the user's one queue |
+| `POST /Lists/QueryDownloadItems.ashx` (0x1208) | XAM | queued items (item XML) |
+| `POST /Lists/ModifyDownloadQueue.ashx` (0x1201) | XAM binds the queue to its console | new version |
+| `POST /Lists/DeleteDownloadItems.ashx` (0x1206) | XAM after an install (or for an invalid item) | new version |
+| `POST /Lists/ModifyDownloadItems.ashx` (0x1207) | XAM records a failed/paused item | new version |
 | other `/Lists/*.ashx` | XAM | 404, logged |
+| `POST /v1/admin/queue`, `DELETE /v1/admin/queue?xuid=` | operator (Bearer `X360_STORE_ADMIN_KEY`), internal network | queue an item for one user / drop the queue |
 | `GET /healthz` | probes | 200 |
 
-The Lists wire layouts come from XAM 17559's XRL schema table (decoded with the Wharf
-`xrlcodec.py`): 0x1202 replies `u16, u16 queueCount, queue[]`; 0x1208 replies
-`u16, u64, u16 itemCount, item[]` where an item starts with a 16-byte media id.
-Little-endian, no padding. The handlers read the gateway's identity headers only through
-`wire.Guard` (`X360_GATEWAY_KEY`).
+Wire layouts come from XAM 17559's XRL schema table (decoded with the Wharf `xrlcodec.py`),
+behaviour from XAM's queue manager (Wharf notes `store-re/download-queue-re.md`). Little-endian,
+no padding. 0x1202 replies `u16, u16 count, {u32, u32 queueId, u64 version, u32 itemCount,
+u8 nameLen, u16 propsLen, "DownloadQueue", props}`; props is
+`<RootNode><dest>consoleId</dest><consoleRegionMask>n</consoleRegionMask></RootNode>`, dest 0 makes
+the console bind the queue with 0x1201. 0x1208 replies `u16 total, u64 version, u16 count,
+{GUID itemId, u16 1000, u16 len, item XML}`; the version must match the queue's. Mutations reply
+with the new u64 version. Queues live in memory (a restart empties them). The handlers read
+the gateway's identity headers only through `wire.Guard` (`X360_GATEWAY_KEY`).
 
 ## The catalog is empty, on purpose
 
@@ -74,10 +82,24 @@ on every console without those cached modules. The native store needs either:
    (`LiveServiceUrl.commerce`) and list (`ListServiceUriRoot`) templates. The browse queries
    live inside the missing modules, so they cannot be read from firmware we have.
 
-The download queue (this service's Lists endpoints) is handled by XAM itself
-(`XamBackgroundDownload*`), without the store UI. It needs Live service 10 in the KDC's
-`X360_KDC_D7_SERVICES` list before XAM will send these requests. The full queue-to-install
-flow is still being mapped.
+## Download and install without the store UI
+
+XAM itself runs the queue and the background downloads (`XamBackgroundDownload*`, a 3-second
+XAM task). The dashboard enables it at boot (SetMode 1). At every Live sign-in, and then hourly
+(LiveHive `SSDQ*PollFrequencyInSeconds`), it asks 0x1202. Verified in Wharf on 2026-10-20 with
+service 10 in the KDC D7 list: the 32-byte 0x1202 request arrives with the user's XUID. For a
+picked item XAM then:
+
+1. calls 0x914 = 0x931 FindMediaInstanceUrls (Live service 9, not served yet). The reply needs
+   exactly one entry with a 16-byte content key, a 284-byte RSA-2048 public key blob and up to
+   10 plain `http://` URLs;
+2. downloads the URL. The body must be a signed, RC4-encrypted Microsoft Cabinet whose
+   reserve is verified with that RSA key. The server chooses both keys, so OpenPak can produce
+   valid files. A CAB writer is still to be built;
+3. extracts a `LIVE` STFS package, verifies it with XeKeysVerifyRSASignature key 1 (Wharf: the
+   OpenPak content signer via `--xsigner_public_key`; retail consoles: Microsoft's key, so
+   modified kernels only), installs it through XContent, and deletes the item (0x1206).
+   An STFS LIVE writer is still to be built.
 
 ## Configuration, build, release
 

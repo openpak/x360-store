@@ -26,7 +26,7 @@ func main() {
 		log.Error("catalog (X360_STORE_CATALOG)", "err", err)
 		os.Exit(2)
 	}
-	h := &store.Handler{Catalog: catalog, Log: log}
+	h := &store.Handler{Catalog: catalog, Queues: &store.Queues{}, AdminKey: os.Getenv("X360_STORE_ADMIN_KEY"), Log: log}
 	srv := &http.Server{Addr: addr, Handler: wire.Guard(os.Getenv("X360_GATEWAY_KEY"), h), ReadHeaderTimeout: 10 * time.Second}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
