@@ -9,6 +9,7 @@ ContainerName=openpak-x360-store
 Image=ghcr.io/openpak/x360-store:latest
 AutoUpdate=registry
 Network=openpak.network
+IP=10.89.2.236
 Environment=X360_STORE_ADDR=:10044
 # Optional: a validated catalog file (see README). Unset = the empty catalog.
 #Environment=X360_STORE_CATALOG=/run/catalog/catalog.json
