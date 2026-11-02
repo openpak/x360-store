@@ -47,3 +47,15 @@ Catalog file (`X360_STORE_CATALOG`, optional):
   apply to a retail console from the network side; this is the same boundary as on other
   platforms ("no game patches", the console itself must accept the code).
 - Emulators (Wharf) do not verify these signatures.
+
+## Why the dashboard has no store tile
+
+The stock 17559 dashboard does not contain its store. `EcNavMarketplaceScriptAction` (`browseui`, `livetitlelist`, `titlecontentlist`, `titlecontentitem`, `xboxoriginalsall`) and `EcNavToURI hub:root` all open `Dash.MP.ContentExplorer.lex`; purchases open `Dash.MP.Purchase.lex`; the Guide's download list is `Guide.MP.Download.xex`. Those modules (and `Dash.MP.Core.xex`, `Dash.Social.lex`, `Dash.OnlineCommon.lex`, `Dash.Search.lex`, `Guide.MP.*.xex`) are not in the system update. XAM downloads them after a Live sign-in from `<UpdateUriRoot1>/fffe07d1/manifests/<SOMRevision>/system.online.manifest` and `.../files/...` into the System Aux partition (`\sap\online`). Only their localized resource `.xzp` files are in the update. A stock-store tile would be dead on any console without those cached modules, and Wharf has none. The dashboard's Lua shows EDS (`{LiveHive:EDSUriRoot}/media/{locale}/...`), commerce (`LiveServiceUrl.commerce`) and list (`ListServiceUriRoot`) templates; the browse queries live inside the missing modules.
+
+## Download and install without the store UI
+
+XAM runs the queue and the background downloads (`XamBackgroundDownload*`, a 3-second XAM task); the dashboard enables it at boot (SetMode 1). At every Live sign-in, and then hourly (LiveHive `SSDQ*PollFrequencyInSeconds`), it asks 0x1202. Verified in Wharf with service 10 in the KDC D7 list: the 32-byte 0x1202 request arrives with the user's XUID. For a picked item XAM then:
+
+1. claims it (0x1207), resolves the install path, then calls 0x914 = 0x931 FindMediaInstanceUrls (Live service 9). Verified in Wharf with a test item: the chain 0x1202 -> 0x1201 -> 0x1208 -> pick -> 0x1207 -> 0x914 ran, 0x914 failed locally with 0x800704DB four times (service 9 is not in the ticket) and XAM deleted the item (0x1206). Adding service 9 to the D7 list breaks the Live sign-in (80004005, the logon stops after GetRevocationList with no further request). The reply needs exactly one entry with a 16-byte content key, a 284-byte RSA-2048 public key blob and up to 10 plain `http://` URLs. This service logs the request at `/xbos/FindMediaInstanceUrls.ashx` and answers 404;
+2. downloads the URL. The body must be a signed, RC4-encrypted Microsoft Cabinet whose reserve is verified with that RSA key. The server chooses both keys;
+3. extracts a `LIVE` STFS package, verifies it with XeKeysVerifyRSASignature key 1 (Wharf: the OpenPak content signer via `--xsigner_public_key`; retail consoles: Microsoft's key, so modified kernels only), installs it through XContent, and deletes the item (0x1206).

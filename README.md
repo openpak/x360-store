@@ -28,9 +28,7 @@ GOWORK=off go run -mod=vendor ./cmd/x360-store
 ## Docs
 
 - [Protocol](docs/protocol.md)
-- [Evidence](docs/evidence.md)
 - [Deploy](docs/deploy.md)
-- [Notes](docs/notes.md)
 
 ## Licence
 

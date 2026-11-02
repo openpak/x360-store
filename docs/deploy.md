@@ -11,3 +11,7 @@ changing it run `GOWORK=off go mod vendor` here and commit).
 (EnvironmentFile `%h/openpak/deploy/x360-gateway-key.env`). Quadlet and Traefik fragment in
 `deploy/`. `GOWORK=off go test -mod=vendor ./...`. Tag `vX.Y.Z` and CI publishes
 `ghcr.io/openpak/x360-store` (amd64 + arm64). Licensed AGPL-3.0, see LICENSE.
+
+## Catalog
+
+OpenPak lists only packages it can show to be redistributable: every item needs an SPDX `license` and a public `source` repository, and the loader rejects anything else. Nothing copyrighted, extracted from firmware or taken from Microsoft's store is bundled or listed. Switch packages are not usable on the 360.
