@@ -1,6 +1,6 @@
 # Evidence: x360-store
 
-## Why the dashboard has no store tile (2026-10-20 findings)
+## Why the dashboard has no store tile
 
 The stock 17559 dashboard does not contain its store. `EcNavMarketplaceScriptAction`
 (`browseui`, `livetitlelist`, `titlecontentlist`, `titlecontentitem`, `xboxoriginalsall`) and
@@ -27,12 +27,12 @@ on every console without those cached modules. The native store needs either:
 
 XAM itself runs the queue and the background downloads (`XamBackgroundDownload*`, a 3-second
 XAM task). The dashboard enables it at boot (SetMode 1). At every Live sign-in, and then hourly
-(LiveHive `SSDQ*PollFrequencyInSeconds`), it asks 0x1202. Verified in Wharf on 2026-10-20 with
+(LiveHive `SSDQ*PollFrequencyInSeconds`), it asks 0x1202. Verified in Wharf with
 service 10 in the KDC D7 list: the 32-byte 0x1202 request arrives with the user's XUID. For a
 picked item XAM then:
 
 1. claims it (0x1207), resolves the install path, then calls 0x914 = 0x931
-   FindMediaInstanceUrls (Live service 9). Verified in Wharf with a test item on 2026-10-20:
+   FindMediaInstanceUrls (Live service 9). Verified in Wharf with a test item:
    the chain 0x1202 -> 0x1201 -> 0x1208 -> pick -> 0x1207 -> 0x914 ran, 0x914 failed locally
    with 0x800704DB four times (service 9 is not in the ticket) and XAM deleted the item (0x1206).
    Adding service 9 to the D7 list breaks the Live sign-in (80004005, the logon stops after
