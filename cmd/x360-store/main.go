@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/openpak/x360-common/httplog"
 	"github.com/openpak/x360-common/wire"
 	"github.com/openpak/x360-store/internal/store"
 )
@@ -26,8 +27,17 @@ func main() {
 		log.Error("catalog (X360_STORE_CATALOG)", "err", err)
 		os.Exit(2)
 	}
-	h := &store.Handler{Catalog: catalog, Queues: &store.Queues{}, AdminKey: os.Getenv("X360_STORE_ADMIN_KEY"), Log: log}
-	srv := &http.Server{Addr: addr, Handler: wire.Guard(os.Getenv("X360_GATEWAY_KEY"), h), ReadHeaderTimeout: 10 * time.Second}
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	queues, err := store.OpenQueues(dbCtx, os.Getenv("X360_STORE_DATABASE_URL"), store.Schema)
+	dbCancel()
+	if err != nil {
+		log.Error("state: X360_STORE_DATABASE_URL is required and must be reachable", "err", err)
+		os.Exit(2)
+	}
+	defer queues.Close()
+	log.Info("state in Postgres", "schema", store.Schema)
+	h := &store.Handler{Catalog: catalog, Queues: queues, AdminKey: os.Getenv("X360_STORE_ADMIN_KEY"), Log: log}
+	srv := &http.Server{Addr: addr, Handler: httplog.Wrap(wire.Guard(os.Getenv("X360_GATEWAY_KEY"), h)), ReadHeaderTimeout: 10 * time.Second}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go func() {

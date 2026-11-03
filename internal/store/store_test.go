@@ -110,7 +110,7 @@ func TestQueueFlow(t *testing.T) {
 	x := "<RootNode><state>1</state></RootNode>"
 	out, _, err = q.Reply("/lists/modifydownloaditems.ashx", append(append(req(uint32(1), uint64(3), uint16(1)), id[:]...),
 		append(binary.LittleEndian.AppendUint16(nil, uint16(len(x))), x...)...))
-	if err != nil || binary.LittleEndian.Uint64(out) != 4 || q.m[xuid].items[0].State != 1 {
+	if err != nil || binary.LittleEndian.Uint64(out) != 4 || q.m[xuid].Items[0].State != 1 {
 		t.Fatalf("0x1207: %v %x", err, out)
 	}
 	out, _, err = q.Reply("/lists/deletedownloaditems.ashx", append(req(uint32(1), uint64(4), uint16(1)), id[:]...))

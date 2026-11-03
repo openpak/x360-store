@@ -21,7 +21,7 @@ u8 nameLen, u16 propsLen, "DownloadQueue", props}`; props is
 `<RootNode><dest>consoleId</dest><consoleRegionMask>n</consoleRegionMask></RootNode>`, dest 0 makes
 the console bind the queue with 0x1201. 0x1208 replies `u16 total, u64 version, u16 count,
 {GUID itemId, u16 1000, u16 len, item XML}`; the version must match the queue's. Mutations reply
-with the new u64 version. Queues live in memory (a restart empties them). The handlers read
+with the new u64 version. Queues live in Postgres (`X360_STORE_DATABASE_URL`, schema `x360_store`, one document per user). The handlers read
 the gateway's identity headers only through `wire.Guard` (`X360_GATEWAY_KEY`).
 
 ## Catalog file

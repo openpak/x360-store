@@ -2,13 +2,20 @@ package store
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
+	"time"
+
+	"github.com/openpak/x360-common/pgstate"
 )
 
 // Download queue (Live "server-side download queue", Lists service 10). XAM
@@ -17,8 +24,9 @@ import (
 // it and deletes it (0x1206) or rewrites its state (0x1207). Layouts from the
 // XAM 17559 schema table; behaviour from XAM's queue manager (README).
 //
-// State is in memory: a restart empties every queue, which XAM handles as
-// "no queue".
+// Each user's queue is one document in Postgres (schema x360_store, key
+// "queue/<xuid hex>"); a Queues without a database (zero value) is memory only,
+// which tests use.
 
 // QueueItem is one queued download as XAM's item XML describes it.
 type QueueItem struct {
@@ -36,15 +44,80 @@ type QueueItem struct {
 }
 
 type queue struct {
-	version uint64
-	props   string // <RootNode><dest>..</dest><consoleRegionMask>..</consoleRegionMask></RootNode>
-	items   []QueueItem
+	Version uint64      `json:"version"`
+	Props   string      `json:"props"` // <RootNode><dest>..</dest><consoleRegionMask>..</consoleRegionMask></RootNode>
+	Items   []QueueItem `json:"items"`
 }
+
+// Schema is the Postgres schema x360-store owns inside the x360 database.
+const Schema = "x360_store"
 
 // Queues holds every user's queue, keyed by online XUID.
 type Queues struct {
 	mu sync.Mutex
+	pg *pgstate.Store
 	m  map[uint64]*queue
+}
+
+// OpenQueues opens the Postgres store in schema and loads every queue. An
+// empty dsn is an error.
+func OpenQueues(ctx context.Context, dsn, schema string) (*Queues, error) {
+	pg, err := pgstate.Open(ctx, dsn, schema)
+	if err != nil {
+		return nil, err
+	}
+	q := &Queues{pg: pg, m: map[uint64]*queue{}}
+	rows, err := pg.Pool().Query(ctx, `SELECT key, value FROM docs WHERE key LIKE 'queue/%'`)
+	if err != nil {
+		pg.Close()
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var k string
+		var v []byte
+		if err := rows.Scan(&k, &v); err != nil {
+			pg.Close()
+			return nil, err
+		}
+		x, err := strconv.ParseUint(strings.TrimPrefix(k, "queue/"), 16, 64)
+		u := &queue{}
+		if err == nil {
+			err = json.Unmarshal(v, u)
+		}
+		if err != nil {
+			pg.Close()
+			return nil, err
+		}
+		q.m[x] = u
+	}
+	if err := rows.Err(); err != nil {
+		pg.Close()
+		return nil, err
+	}
+	return q, nil
+}
+
+// Close releases the database pool.
+func (q *Queues) Close() {
+	if q.pg != nil {
+		q.pg.Close()
+	}
+}
+
+// saveLocked writes xuid's queue (or removes it when it is gone).
+func (q *Queues) saveLocked(xuid uint64) error {
+	if q.pg == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	key := fmt.Sprintf("queue/%016x", xuid)
+	if u := q.m[xuid]; u != nil {
+		return q.pg.Save(ctx, key, u)
+	}
+	_, err := q.pg.Pool().Exec(ctx, `DELETE FROM docs WHERE key=$1`, key)
+	return err
 }
 
 const queueID = 1
@@ -69,19 +142,20 @@ func (q *Queues) Add(xuid uint64, it QueueItem) ([16]byte, error) {
 	}
 	u := q.m[xuid]
 	if u == nil {
-		u = &queue{version: 1, props: "<RootNode><dest>0</dest><consoleRegionMask>0</consoleRegionMask></RootNode>"}
+		u = &queue{Version: 1, Props: "<RootNode><dest>0</dest><consoleRegionMask>0</consoleRegionMask></RootNode>"}
 		q.m[xuid] = u
 	}
-	u.items = append(u.items, it)
-	u.version++
-	return it.ID, nil
+	u.Items = append(u.Items, it)
+	u.Version++
+	return it.ID, q.saveLocked(xuid)
 }
 
 // Clear drops xuid's queue.
-func (q *Queues) Clear(xuid uint64) {
+func (q *Queues) Clear(xuid uint64) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	delete(q.m, xuid)
+	return q.saveLocked(xuid)
 }
 
 type reader struct {
@@ -143,10 +217,10 @@ func (q *Queues) Reply(path string, body []byte) (out []byte, ok bool, err error
 		name := "DownloadQueue"
 		out = le16(le16(nil, 0), 1)
 		out = le32(le32(out, 0), queueID)
-		out = le32(le64(out, u.version), uint32(len(u.items)))
+		out = le32(le64(out, u.Version), uint32(len(u.Items)))
 		out = append(out, byte(len(name)))
-		out = le16(out, uint16(len(u.props)))
-		return append(append(out, name...), u.props...), true, nil
+		out = le16(out, uint16(len(u.Props)))
+		return append(append(out, name...), u.Props...), true, nil
 	case "/lists/querydownloaditems.ashx": // 0x1208
 		r.u32() // queue id
 		max, start := r.u32(), r.u32()
@@ -163,7 +237,7 @@ func (q *Queues) Reply(path string, body []byte) (out []byte, ok bool, err error
 			return make([]byte, 12), true, nil
 		}
 		var sel []QueueItem
-		for _, it := range u.items {
+		for _, it := range u.Items {
 			if len(want) == 0 || want[it.ID] {
 				sel = append(sel, it)
 			}
@@ -177,7 +251,7 @@ func (q *Queues) Reply(path string, body []byte) (out []byte, ok bool, err error
 		if max > 0 && int(max) < len(sel) {
 			sel = sel[:max]
 		}
-		out = le16(le64(le16(nil, uint16(total)), u.version), uint16(len(sel)))
+		out = le16(le64(le16(nil, uint16(total)), u.Version), uint16(len(sel)))
 		for _, it := range sel {
 			x := it.xml()
 			out = append(out, it.ID[:]...)
@@ -195,9 +269,9 @@ func (q *Queues) Reply(path string, body []byte) (out []byte, ok bool, err error
 		if u == nil {
 			return nil, true, errors.New("no queue")
 		}
-		u.props = props
-		u.version++
-		return le64(nil, u.version), true, nil
+		u.Props = props
+		u.Version++
+		return le64(nil, u.Version), true, q.saveLocked(xuid)
 	case "/lists/deletedownloaditems.ashx": // 0x1206
 		r.u32()
 		r.u64()
@@ -212,15 +286,15 @@ func (q *Queues) Reply(path string, body []byte) (out []byte, ok bool, err error
 		if u == nil {
 			return nil, true, errors.New("no queue")
 		}
-		keep := u.items[:0]
-		for _, it := range u.items {
+		keep := u.Items[:0]
+		for _, it := range u.Items {
 			if !del[it.ID] {
 				keep = append(keep, it)
 			}
 		}
-		u.items = keep
-		u.version++
-		return le64(nil, u.version), true, nil
+		u.Items = keep
+		u.Version++
+		return le64(nil, u.Version), true, q.saveLocked(xuid)
 	case "/lists/modifydownloaditems.ashx": // 0x1207: XAM rewrites state/percent
 		r.u32()
 		r.u64()
@@ -231,13 +305,13 @@ func (q *Queues) Reply(path string, body []byte) (out []byte, ok bool, err error
 			if u == nil || r.err != nil {
 				continue
 			}
-			for j := range u.items {
-				if u.items[j].ID == id {
+			for j := range u.Items {
+				if u.Items[j].ID == id {
 					var st struct {
 						State uint32 `xml:"state"`
 					}
 					if xml.Unmarshal(x, &st) == nil {
-						u.items[j].State = st.State
+						u.Items[j].State = st.State
 					}
 				}
 			}
@@ -248,8 +322,8 @@ func (q *Queues) Reply(path string, body []byte) (out []byte, ok bool, err error
 		if u == nil {
 			return nil, true, errors.New("no queue")
 		}
-		u.version++
-		return le64(nil, u.version), true, nil
+		u.Version++
+		return le64(nil, u.Version), true, q.saveLocked(xuid)
 	}
 	return nil, false, nil
 }

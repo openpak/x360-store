@@ -14,6 +14,8 @@ Environment=X360_STORE_ADDR=:10044
 # Optional: a validated catalog file (see README). Unset = the empty catalog.
 #Environment=X360_STORE_CATALOG=/run/catalog/catalog.json
 #Volume=%h/openpak/deploy/x360-store/catalog:/run/catalog:ro,Z
+# db.env defines X360_STORE_DATABASE_URL (Postgres, schema x360_store; required), mode 0600, never committed.
+EnvironmentFile=%h/openpak/deploy/x360-store/db.env
 EnvironmentFile=%h/openpak/deploy/x360-gateway-key.env
 # X360_STORE_ADMIN_KEY=<random> for POST/DELETE /v1/admin/queue (uncommitted).
 EnvironmentFile=%h/openpak/deploy/x360-store/admin.env

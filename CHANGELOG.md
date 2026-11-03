@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-03: v0.3.0: download queues move to Postgres (schema `x360_store` in database `x360`, `X360_STORE_DATABASE_URL`,
+  required: the service refuses to start without it); a restart no longer empties them.
+
 - 2026-10-20: v0.2.1: parse 0x1207 items as GUID + u16 length + XML (no flags word); log
   FindMediaInstanceUrls (0x930/0x931) requests, still unserved (404).
 

@@ -141,7 +141,10 @@ func (h *Handler) adminQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodDelete {
-		h.Queues.Clear(xuid)
+		if err := h.Queues.Clear(xuid); err != nil {
+			http.Error(w, "queue store unavailable", http.StatusServiceUnavailable)
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
