@@ -327,3 +327,21 @@ func (q *Queues) Reply(path string, body []byte) (out []byte, ok bool, err error
 	}
 	return nil, false, nil
 }
+
+// Erase drops the download queues of xuids and returns how many existed.
+func (q *Queues) Erase(xuids []uint64) (int, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	n := 0
+	for _, x := range xuids {
+		if q.m[x] == nil {
+			continue
+		}
+		delete(q.m, x)
+		n++
+		if err := q.saveLocked(x); err != nil {
+			return 0, err
+		}
+	}
+	return n, nil
+}

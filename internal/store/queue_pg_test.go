@@ -67,3 +67,25 @@ func TestQueueSurvivesRestart(t *testing.T) {
 		t.Fatal("cleared queue came back")
 	}
 }
+
+func TestEraseDropsOnlyThoseQueues(t *testing.T) {
+	q := &Queues{}
+	it := QueueItem{TitleID: 1, MediaType: 24, OfferName: "x", MediaID: "00000000-0000-0000-0000-000000000001",
+		OfferID: "00000000-0000-0000-0000-000000000002", Size: 5}
+	const a, b = 0x0009000000000001, 0x0009000000000002
+	if _, err := q.Add(a, it); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.Add(b, it); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := q.Erase([]uint64{a}); err != nil || n != 1 {
+		t.Fatalf("erase: %d %v", n, err)
+	}
+	if n, err := q.Erase([]uint64{a}); err != nil || n != 0 {
+		t.Fatalf("second erase: %d %v", n, err)
+	}
+	if q.m[a] != nil || q.m[b] == nil {
+		t.Fatal("wrong queue erased")
+	}
+}

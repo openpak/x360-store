@@ -15,3 +15,11 @@ changing it run `GOWORK=off go mod vendor` here and commit).
 ## Catalog
 
 OpenPak lists only packages it can show to be redistributable: every item needs an SPDX `license` and a public `source` repository, and the loader rejects anything else. Nothing copyrighted, extracted from firmware or taken from Microsoft's store is bundled or listed. Switch packages are not usable on the 360.
+
+## Account erasure
+
+`DELETE /internal/accounts/{account_id}/data` with `Authorization: Bearer $ACCOUNT_ERASE_KEY` on a separate listener `ERASE_ADDR` (default `:9099`, container network only, never published; not served while the key is unset). Reply `{"service":"x360-store","rows":N}`; one `account erased` log line per erasure.
+
+Website step name: `x360-store`.
+
+Deletes the account's download queue documents (`queue/<xuid>`). The catalog is not per account. Needs `X360_XUACS_INTERNAL_URL`/`_KEY` (new, optional). Run before x360-xuacs.

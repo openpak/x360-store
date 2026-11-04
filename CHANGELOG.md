@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-11-04: v0.4.0: Account erasure (card #120). `DELETE /internal/accounts/{account_id}/data` with `Authorization: Bearer $ACCOUNT_ERASE_KEY` on a separate listener `ERASE_ADDR` (default `:9099`, container network only, never published; not served while the key is unset). Reply `{"service":"x360-store","rows":N}`; one `account erased` log line per erasure. Deletes the account's download queue (`queue/<xuid>`). New optional env `X360_XUACS_INTERNAL_URL` and `X360_XUACS_INTERNAL_KEY` (to find the XUIDs); without them the endpoint is not served.
+
 - 2026-11-03: v0.3.0: download queues move to Postgres (schema `x360_store` in database `x360`, `X360_STORE_DATABASE_URL`,
   required: the service refuses to start without it); a restart no longer empties them.
 
